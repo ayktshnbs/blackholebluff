@@ -13,26 +13,36 @@ Fictional in-game stakes only. No real-money gambling, and no purchasable curren
 | Phase | State |
 |---|---|
 | **0 — Project setup** | ✅ Complete |
-| **1 — Pure card-game prototype** | ✅ Complete — **97/97 tests passing** |
-| 2 — Complete playable duel | ⬜ Next |
-| 3 — AI behaviour and balance | ⬜ |
+| **1 — Pure card-game prototype** | ✅ Complete |
+| **2 — Complete playable duel** | ✅ Complete — **166/166 tests passing** |
+| 3 — AI behaviour and balance | ⬜ Next |
 | 4 — 3D vertical slice | ⬜ |
 | 5–7 — Content, polish, Steam | ⬜ |
 
-No 3D assets, UI or presentation exist yet. That is deliberate: the rules are proven first (see [docs/RULES.md](docs/RULES.md)).
+**The duel is playable end to end** — wagers, bluffing, fold/call, victory and defeat, restart. No art, sound or 3D yet, and the UI is deliberately throwaway IMGUI. That ordering is on purpose: the game has to be worth looking at before it is worth decorating.
 
 ## Requirements
 
 - **Unity 6000.4.7f1** (URP)
 - Windows, Git, Git LFS
 
-## Running it
+## Playing it
 
-There is no game to play yet — Phase 1 delivers the rules engine. Two ways to see it work:
+**Open `Assets/Scenes/Duel.unity` and press Play.** That is the whole game as it currently stands:
 
-**1. The dev harness.** Open `Assets/Scenes/DevSandbox.unity` and press Play. It deals a hand of five-card draw, applies the configured discards, and logs both hands with the showdown result to the Console. The `DevHarness` object lets you set a seed (reproducible) or randomise it, and choose which positions each side discards.
+1. You and the opponent are each dealt five cards, four steps from the black hole.
+2. Click up to three of your cards to throw away, then draw.
+3. Either set a pressure level (1–3) or answer the opponent's — fold, or call.
+4. Fold and you lose one step. Call and lose the showdown, and you lose the whole wager.
+5. First to the event horizon loses. **New duel** restarts without leaving Play mode.
 
-**2. The tests.** `Window → General → Test Runner → EditMode → Run All`. 97 cases covering every hand category, tie-breaking, kickers, the ace-low straight, deck uniqueness, shuffle determinism and the discard rules.
+The `Duel` object exposes starting steps, fold cost, and a seed — set the seed to a fixed value to replay the same duel exactly, or leave it at 0 for a new one each run.
+
+`Assets/Scenes/DevSandbox.unity` still holds the Phase 1 card harness, which logs a single hand to the Console.
+
+## The tests
+
+`Window → General → Test Runner → EditMode → Run All` — 166 cases covering hand evaluation and tie-breaking, deck integrity, the discard rules, gravity, every match state transition, the AI's decisions, the information boundary, and a balance probe that plays 200 full duels per strategy.
 
 From the command line:
 
@@ -47,16 +57,16 @@ Assets/
   Scripts/
     Core/              <- BlackHoleBluff.Core assembly, NO UnityEngine (see below)
       Cards/           Card, Rank, Suit, Deck, IRandomSource
-      GameRules/       HandEvaluator, HandResult, FiveCardDrawRules, DrawRound
-      Ai/              (Phase 3)
-      Match/           (Phase 2)
+      GameRules/       HandEvaluator, HandResult, HandStrength, FiveCardDrawRules, DrawRound
+      Ai/              DuelObservation, IDuelOpponent, OpponentPersonality, BasicOpponent
+      Match/           DuelMatch, GravityTrack, MatchConfig, HandOutcome
     Presentation/      (Phase 4)
-    UI/                (Phase 2+)
+    UI/                (Phase 4 — the real UI; the placeholder lives in Dev/)
     Audio/             (Phase 4)
-    Dev/               Throwaway harnesses
+    Dev/               Throwaway harnesses and the placeholder IMGUI duel
     Editor/            Editor tooling (menu: Black Hole Bluff / Setup)
   Tests/EditMode/      BlackHoleBluff.Tests.EditMode assembly
-  Scenes/              DevSandbox.unity
+  Scenes/              Duel.unity (playable), DevSandbox.unity (card harness)
   Settings/            URP pipeline assets
   _TEMP_/              Placeholder art; gitignored, never ships
 ```

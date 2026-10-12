@@ -14,6 +14,7 @@ namespace BlackHoleBluff.EditorTools
     public static class ProjectSetup
     {
         const string SandboxScenePath = "Assets/Scenes/DevSandbox.unity";
+        const string DuelScenePath = "Assets/Scenes/Duel.unity";
 
         [MenuItem("Black Hole Bluff/Setup/1. Create Dev Sandbox Scene", false, 1)]
         public static void CreateDevSandboxScene()
@@ -44,6 +45,66 @@ namespace BlackHoleBluff.EditorTools
             Debug.Log(
                 "[ProjectSetup] Created Assets/Scenes/DevSandbox.unity with a DrawRoundDevHarness " +
                 "and registered it as build scene 0. Press Play to log a hand of five-card draw.");
+        }
+
+        [MenuItem("Black Hole Bluff/Setup/2. Create Duel Scene", false, 2)]
+        public static void CreateDuelScene()
+        {
+            if (File.Exists(DuelScenePath) &&
+                !EditorUtility.DisplayDialog(
+                    "Scene exists",
+                    $"{DuelScenePath} already exists.\n\nOverwrite it?",
+                    "Overwrite", "Cancel"))
+                return;
+
+            if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
+                AssetDatabase.CreateFolder("Assets", "Scenes");
+
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+
+            var duel = new GameObject("Duel");
+            duel.AddComponent<DuelDevUI>();
+
+            if (!EditorSceneManager.SaveScene(scene, DuelScenePath))
+            {
+                Debug.LogError("[ProjectSetup] Failed to save the duel scene.");
+                return;
+            }
+
+            // The playable duel is what a build should launch into, so it goes first.
+            AddSceneToBuildList(DuelScenePath, first: true);
+            AddSceneToBuildList(SandboxScenePath, first: false);
+
+            Debug.Log(
+                "[ProjectSetup] Created Assets/Scenes/Duel.unity with a DuelDevUI and made it " +
+                "build scene 0. Press Play for a complete playable duel (placeholder IMGUI).");
+        }
+
+        /// <summary>
+        /// Drops build-list entries whose scene file does not exist. The URP template's
+        /// EditorBuildSettings referenced a SampleScene that this project never copied,
+        /// which left a dangling entry Unity tolerates but should not have to.
+        /// </summary>
+        [MenuItem("Black Hole Bluff/Setup/Prune Missing Scenes From Build List", false, 3)]
+        public static void PruneMissingScenesFromBuildList()
+        {
+            var kept = EditorBuildSettings.scenes.Where(s => File.Exists(s.path)).ToArray();
+            var removed = EditorBuildSettings.scenes.Length - kept.Length;
+
+            if (removed == 0)
+            {
+                Debug.Log("[ProjectSetup] Build list is clean; every scene exists.");
+                return;
+            }
+
+            var gone = EditorBuildSettings.scenes
+                .Where(s => !File.Exists(s.path))
+                .Select(s => s.path);
+
+            EditorBuildSettings.scenes = kept;
+
+            Debug.Log($"[ProjectSetup] Removed {removed} missing scene(s) from the build list: " +
+                      string.Join(", ", gone));
         }
 
         [MenuItem("Black Hole Bluff/Setup/Verify Project Settings", false, 20)]
@@ -95,12 +156,13 @@ namespace BlackHoleBluff.EditorTools
             }
         }
 
-        static void AddSceneToBuildList(string scenePath)
+        static void AddSceneToBuildList(string scenePath, bool first = true)
         {
             var scenes = EditorBuildSettings.scenes.ToList();
             if (scenes.Any(s => s.path == scenePath)) return;
 
-            scenes.Insert(0, new EditorBuildSettingsScene(scenePath, true));
+            var entry = new EditorBuildSettingsScene(scenePath, true);
+            if (first) scenes.Insert(0, entry); else scenes.Add(entry);
             EditorBuildSettings.scenes = scenes.ToArray();
         }
     }

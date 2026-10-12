@@ -82,23 +82,40 @@ This is the single place in the game where an ace is not worth 14.
 
 ---
 
-## 4. Gravity Pressure — (Phase 2 — specified)
+## 4. Gravity Pressure
 
-The signature mechanic. Not yet implemented; this is the spec Phase 2 builds against.
+The signature mechanic. **The numbers are changing** — this section documents both the
+version in the code today and the approved replacement.
+
+> ### ⚠️ Numbers: implemented vs approved
+>
+> | | Implemented today | **Approved (Q-5), not yet implemented** |
+> |---|---|---|
+> | Starting distance | 4 steps | **6 steps** |
+> | Pressure levels cost | 1 / 2 / 3 steps | **2 / 3 / 4 steps** |
+> | Fold cost | 1 step | 1 step (unchanged) |
+>
+> Approved 2026-10-12. Rationale: under 1/2/3 the lowest level has no meaningful fold
+> decision (§4.3a), while a 4-step loss from a 4-step start would end the duel on the
+> opening hand. Six steps keeps the top wager genuinely dangerous without making hand
+> one terminal.
+>
+> Phase 3 implements this. Until then the code, tests and balance figures below the
+> warning box describe the **1 / 2 / 3 and start-4** version.
 
 ### 4.1 Distance
 
-Each character starts a duel **four steps** from the black hole. Reaching **zero** steps means being consumed, and losing the duel.
+Each character starts a duel a fixed number of steps from the black hole — **4 today, 6 once Q-5 lands**. Reaching **zero** steps means being consumed, and losing the duel.
 
 ### 4.2 Wagering
 
-The side acting first chooses one of three pressure levels:
+The side acting first chooses one of three pressure levels. The number shown to the player **is** the number of steps at risk.
 
-| Level | Meaning | Steps at risk |
-|---|---|---|
-| **Pressure 1** | A cautious wager | 1 |
-| **Pressure 2** | A significant risk | 2 |
-| **Pressure 3** | A dangerous, high-stakes wager | 3 |
+| Level | Meaning | Steps today | **Steps after Q-5** |
+|---|---|---|---|
+| Lowest | A cautious wager | 1 | **2** |
+| Middle | A significant risk | 2 | **3** |
+| Highest | A dangerous, high-stakes wager | 3 | **4** |
 
 The other side may **fold** or **call**.
 
@@ -110,6 +127,51 @@ The other side may **fold** or **call**.
 So a called Pressure 3 moves the loser three steps — from a full four, that is one hand from death.
 
 The asymmetry is the whole point: folding always costs exactly one step, so a big wager against a weak hand is a real threat *and* a real risk. Bluffing is profitable only while opponents still fold.
+
+### 4.3a Why the numbers are changing — Q-5, resolved
+
+Folding costs `FoldCost` for certain. Calling a wager of **N** loses N on a loss and inflicts N on a win. Comparing net step differential:
+
+```
+fold = -FoldCost          call = 2·N·p − N
+=> calling is correct once p > (N − FoldCost) / 2N
+```
+
+With the specified `FoldCost = 1` and pressures `1 / 2 / 3`:
+
+| Wager | Fold is correct below |
+|---|---|
+| Pressure 1 | **never** — folding is weakly dominated |
+| Pressure 2 | p < 0.25 |
+| Pressure 3 | p < 0.333 |
+
+Two consequences, both confirmed by the balance probe:
+
+- **Pressure 1 carries no fold decision at all.** The downside of calling is identical to folding, so calling can only gain. `BasicOpponent` therefore always calls when `pressure <= FoldCost`.
+- **Folding is rarely correct anywhere.** Across 200 duels per strategy, "always call" (54.0%) slightly outperforms a strategy that folds weak hands (51.5%).
+
+**Resolution (approved 2026-10-12):** pressures cost **2 / 3 / 4** steps, folding stays at **1**, starting distance rises to **6**.
+
+Under the new numbers folding becomes a real decision at every level:
+
+| Wager | Fold is correct below | Equivalent |
+|---|---|---|
+| 2 steps | p < 0.25 | fold with the bottom quarter of hands |
+| 3 steps | p < 0.333 | fold with the bottom third |
+| 4 steps | p < 0.375 | fold with the bottom three eighths |
+
+And the distance maths stays tense without being abrupt:
+
+- A single maximum loss takes 4 of 6 steps — survivable once, leaving 2.
+- **Two** maximum losses are fatal, so a duel is at least two losing hands long.
+- Folding six times is also fatal, so passive play still loses — just slowly.
+- Folding (1) is now clearly cheaper than the cheapest wager (2), which is what gives the fold button a reason to exist.
+
+### 4.3b Implementation note: the number shown must equal the steps at risk
+
+After Q-5 the three levels cost 2, 3 and 4 steps. Labelling them "Pressure 1/2/3" would mean "Pressure 1" costs two steps, which is needlessly confusing.
+
+**Label each level by its step cost** — Pressure 2, Pressure 3, Pressure 4 — so the number on the button is always the number of steps the loser is dragged. The `PressureLevel` enum members should be renamed to match their values for the same reason.
 
 ### 4.4 Ties
 
@@ -125,7 +187,7 @@ No side pots, no multiple raises, no re-raises, no variable bet sizing beyond th
 
 ---
 
-## 5. Information rules — (Phase 3 — specified)
+## 5. Information rules — (Phase 2 — implemented)
 
 The AI **must not** read the player's hidden cards. It may use only:
 
@@ -141,7 +203,7 @@ Randomness must make the opponent unpredictable without making it feel arbitrary
 
 ---
 
-## 6. Match end — (Phase 2 — specified)
+## 6. Match end — (Phase 2 — implemented)
 
 A duel ends when either character reaches zero steps. Gravity distance must never become negative or otherwise invalid without ending the match — that is MVP acceptance criterion 6.
 
